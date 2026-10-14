@@ -43,4 +43,4 @@ The compiled executable will be in `target/release/`.
 
 ## License
 
-Add your license here (for example MIT).
+This project is licensed under the [MIT License](LICENSE).
