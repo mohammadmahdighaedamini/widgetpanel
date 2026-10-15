@@ -142,12 +142,29 @@ pub fn base64(data: &[u8]) -> String {
     s
 }
 
+pub fn hex(data: &[u8]) -> String {
+    const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(data.len() * 2);
+    for &b in data {
+        s.push(HEX_CHARS[(b >> 4) as usize] as char);
+        s.push(HEX_CHARS[(b & 0x0F) as usize] as char);
+    }
+    s
+}
+
+pub fn unhex(s: &str) -> Option<Vec<u8>> {
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok()).collect()
+}
+
 /// Tray icon: 32×32 RGBA pixels (assets/tray.rgba, generated from the app logo).
 pub fn tray_rgba() -> Vec<u8> {
     include_bytes!("../assets/tray.rgba").to_vec()
 }
 
-/// Fast stable hash: hashes full data for small inputs, and strides for huge buffers (like 4K screenshots).
+/// Fast stable hash: hashes full data for small inputs (like passwords), and strides for huge buffers (like 4K screenshots).
 pub fn hash(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
     let step = if bytes.len() > 65536 { 97 } else { 1 };

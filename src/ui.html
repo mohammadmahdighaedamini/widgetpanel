@@ -206,6 +206,11 @@
   .ph-tile { border-radius: 14px; border: 2px dashed var(--muted); min-height: 66px; animation: phIn .25s var(--pop); }
   .hint { font-size: 11px; color: var(--muted); text-align: center; }
 
+  /* network */
+  .npage { display: none; flex-direction: column; gap: 8px; }
+  .npage.on { display: flex; animation: rise .4s cubic-bezier(.2,.8,.2,1) both; }
+  .netlog { background: var(--soft); border-radius: 12px; padding: 9px 12px; font: 12px/1.55 Consolas, monospace; min-height: 120px; max-height: 190px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; scrollbar-width: none; -webkit-user-select: text; user-select: text; }
+  .netlog::-webkit-scrollbar { display: none; }
   /* mute (microphone & sound) */
   .mrow { display: flex; gap: 8px; }
   .mbtn { flex: 1; border: 0; border-radius: 16px; background: var(--soft); color: var(--ink); padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font: inherit; font-size: 13px; }
@@ -220,6 +225,25 @@
   .chip span { margin-left: 4px; opacity: .6; } .chip span:hover { opacity: 1; }
   .item .acts svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   .btn:disabled { opacity: .45; cursor: default; }
+
+  /* passwords */
+  .item.vt { display: flex; align-items: center; gap: 10px; padding-right: 96px; gap: 8px; }
+  .vt .lg { flex: none; width: 28px; height: 28px; border-radius: 9px; background: var(--soft2); display: grid; place-items: center; font-size: 15px; overflow: hidden; }
+  .vt .lg img { width: 18px; height: 18px; display: block; }
+  .vt .tx { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .vt .tx b { display: block; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+  .vt .pwmask { letter-spacing: 2px; }
+  .vt .pwshow { font-size: 9.5px; white-space: nowrap; color: var(--ink); user-select: text; -webkit-user-select: text; }
+  .vt .acts { right: 4px; gap: 0; }
+  .vt .acts span { width: 18px; cursor: pointer; }
+  .item.vt, .item.vt:hover, body.left .item.vt:hover { cursor: default; transform: none; }
+  .item.vt:hover { background: var(--soft); }
+  .vt .lg.img { background: #fff; }   /* dark logos (GitHub, X, Apple...) were invisible on the dark panel */
+  .panel[data-name=vault] { min-height: 330px; }
+  .panel[data-name=vault].on > #vListBox, .panel[data-name=vault].on > #vForm { animation: vfade .2s ease both; }
+  #vListBox { flex: 1; }
+  @keyframes vfade { from { opacity: 0; } }
+  .vform { display: none; flex-direction: column; gap: 8px; }
 
   /* up/down arrows: no box, just two arrows tinted with the theme's text colour */
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0 0 0 6px; width: 14px; height: 22px; cursor: pointer; opacity: .6; transition: opacity .15s;
@@ -307,7 +331,7 @@
   button, select, label, summary, [role="button"], [data-t], [data-c], [data-w], [data-p], [data-a],
   input[type="checkbox"], input[type="radio"], input[type="range"], input[type="color"], input[type="file"] { cursor: pointer; }
   button:disabled, [disabled] { cursor: default; }
-  input[type="text"], input[type="search"], input[type="number"], input:not([type]), textarea { cursor: text; }
+  input[type="text"], input[type="search"], input[type="password"], input[type="number"], input:not([type]), textarea { cursor: text; }
   .panning, .panning * { cursor: grabbing !important; }
   /* B Nazanin (regular + bold) is embedded, so it looks the same on every PC. unicode-range = it is used ONLY for Persian/Arabic characters anywhere in the panel; English text keeps Segoe UI. */
   @font-face { font-family: "BNazanin"; font-weight: 100 500; font-style: normal; font-display: block; size-adjust: 112%; unicode-range: U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200D;
@@ -410,6 +434,52 @@
     <div class="netmsg" id="aMsg"></div>
   </div>
 
+  <div class="panel" data-name="network">
+    <div class="head"><button class="back">←</button><h4>Network</h4><button class="link" id="netRefresh">↻ Refresh</button></div>
+    <div class="tabs" id="netTabs"><button data-n="info" class="on">Info</button><button data-n="dns">DNS</button><button data-n="ping">Ping</button><button data-n="wifi">Wi‑Fi</button></div>
+    <div class="npage on" data-n="info">
+      <button class="item plain spring dt" data-copy="netLocalV"><div><small>Local IP</small><b id="netLocalV">…</b></div></button>
+      <button class="item plain spring dt" data-copy="netPublicV"><div><small>Public IP</small><b id="netPublicV">…</b></div></button>
+      <button class="item plain spring dt" data-copy="netDnsV"><div><small>DNS servers</small><b id="netDnsV">…</b></div></button>
+      <div class="hint">click a value to copy it</div>
+    </div>
+    <div class="npage" data-n="dns">
+      <div class="chips" id="netChips"></div>
+      <div class="row"><input class="field" id="netDns1" placeholder="Primary DNS"><input class="field" id="netDns2" placeholder="Secondary"></div>
+      <div class="row"><input class="field" id="netDnsName" placeholder="Name (optional)" maxlength="20"></div>
+      <div class="row"><button class="btn primary" id="netApply">Apply</button><button class="btn" id="netSave">Save</button></div>
+      <div class="row"><button class="btn" id="netReset">Reset</button><button class="btn" id="netFlush">Flush cache</button></div>
+      <div class="netmsg" id="netDnsMsg"></div>
+    </div>
+    <div class="npage" data-n="ping">
+      <div class="row"><input class="field" id="netHost" placeholder="Host or IP, e.g. google.com" style="flex:2"><button class="btn primary" id="netPingBtn" style="flex:1">Ping</button></div>
+      <div class="chips" id="netHosts"></div>
+      <div class="netlog" id="netPingOut"></div>
+    </div>
+    <div class="npage" data-n="wifi">
+      <div class="list scroll" id="netWifiList"></div>
+      <button class="btn" id="netWifiAdmin" style="display:none">Show hidden passwords (admin)</button>
+    </div>
+  </div>
+
+  <div class="panel" data-name="vault">
+    <div class="head"><button class="back">←</button><h4>Passwords</h4><button class="link" id="vAdd">＋ Add</button></div>
+    <div id="vListBox" style="display:flex;flex-direction:column;gap:8px">
+      <input class="field" id="vSearch" placeholder="Search..." autocomplete="off" spellcheck="false">
+      <div class="list scroll" id="vList"></div>
+      <div class="hint">use the icons to copy the username or password</div>
+    </div>
+    <div class="vform" id="vForm">
+      <input class="field" id="vTitle" placeholder="Name" autocomplete="off" spellcheck="false">
+      <input class="field" id="vSite" placeholder="Website (optional), e.g. example.com" autocomplete="off" spellcheck="false">
+      <input class="field" id="vUser" placeholder="Username or email" autocomplete="off" spellcheck="false">
+      <div class="row"><input class="field" id="vPass" type="password" placeholder="Password" autocomplete="off" spellcheck="false" style="flex:3"><button class="btn" id="vEye" style="flex:1">Show</button><button class="btn" id="vGen" style="flex:1">Generate</button></div>
+      <div class="row"><button class="btn primary" id="vSave">Save</button><button class="btn" id="vCancel">Cancel</button></div>
+      <div class="netmsg" id="vMsg"></div>
+      <div class="hint">Passwords are encrypted with your Windows account. The site icon is downloaded once from Google’s favicon service.</div>
+    </div>
+  </div>
+
   <div class="panel" data-name="settings">
     <div class="tabs" id="stabs"><button data-p="widgets" class="on">Widgets</button><button data-p="look">Theme</button><button data-p="general">General</button></div>
     <div class="spage on" data-p="widgets">
@@ -467,14 +537,16 @@ const W = {
   note:      { name: 'Note', icon: I('<path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/>'), kind: 'panel' },
   more:      { name: 'More', icon: I('<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>'), kind: 'panel', dockOnly: true },
   folders:   { name: 'Folders', icon: I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'), kind: 'panel' },
+  vault:     { name: 'Passwords', icon: '<span class="mi" style="--m:url(data:image/png;base64,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)"></span>', kind: 'panel' },
   clock:     { name: 'World clock', icon: '<span class="mi" style="--m:url(data:image/png;base64,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)"></span>', kind: 'panel' },
+  network:   { name: 'Network', icon: '<span class="mi" style="--m:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAKS0lEQVR42u2ce4wdVR3HPzN7aRdja7stjxaKBSxSqBFabaIlMSbSioAaDTEYHxg1VvnDipgIGmNSxUcaRUKMEh9VUCgCQRNFgVSUxPejViwVH1WwC1qsdu0Wl3vvXP+Y33F/e/bMnXNm5967255fcrK7d3Zmzvm9f9/fORciRYoUKVKkSJEiRYoUKVKkSJEiRYrUF0qOsnl3ogDqm1Nqza9jDRel6hlJwH3HtAASxewO0Pa4pyFDC+dpDwYnwJD8ns0GoQxKAKmMTIZNJwErgDOAlcCpwLOBBcBCYDEwX/1/GzgM/AuYAEaBfwB/Bh4F9snPMce7bIEctQIwTG9Zn48AzwfWA+uAc4DThNl1khHILuBnwC+Bh4HmIIWR9Mm9dCxNfx5wIfBy4HxgaUFA1YxIPObccQRj7XZsegR4ELgX+AHwd0sYnQILnRPBvWF9djZwjWhf2wqMbdHEpvyeOYLnTEcm1mfeY18/CNwFXA4ssix3aC4xXk92PnAZ8G3xzXrBTWFIL5jtO9pqHvrz/cBnxCW64sWsZ/zJwHvFx9pMbw+Y6WUW0rI++w5wsadLGwjZjN8qAc8solWzpmclo6532G7qx8BrHUnFwEhPYCHwfglitrbX4a9bAc/KrJjSmqHV2e9+ENho1SR9J/3Sy4E/WozPZsDwsnvHJZ8fA/4tw/w94cHMqrGnbbmn2yWxsKvwnqahpsTPgOcCnwJeIdda4o58n2lchsuUD0qKuAf4HfA3GePAAZW72ynqM4ET5OfpUsStFkadARxvvaddAHuUzdvcMw58FPikPKvhqHN64uuvFI3rVHAPrv8fBe4E3g1sAJb0IEk4DbgU+ATwE+C/DutoBbom8/uPgLUVhBnscpYB3yyYRGhQ+wNwg/jTZ3WpJcwYUosrGiZnH7Luc9GZwFuAbwGHHEqSBa7rKeCqulNWnXJtEjcQ4uczS0gHge1SBQ87LKwR6MZCK3LzDvv5pwKbgR920XJfa7hTWfCMArQ2pfdZQTZU4/8KfEAWaltWLxjuu76GI/5cANxqMbUVuOZHBNuqLIRU3fwllQW0A7XhUWCLVdoP1cR02/3UAZ3o56wFvqbW7Lt+I4QjwOuqCMG4nEXA/QEuR0/wEPAhgY21ticzcBs6DtTx/92UT/vv9VINh3gALagtIetPVbD9ldXo8NX6HcBzKjA+UW7BJ4DNkzgyDBznmUg0AgRiC+IyYK9V7PnGv61FgTmxXtgBlgs8e448oFEC/2by4L8A7wHuVgtue+DqRX2CYUkdz5R8fpXEkKVinSNqbhNSHxwBHhcwba8UiH+Sv0MaQi6lzKRH8WGV7fjwx9QHn5b7hijo+pkX7fTUfK0B21Xk9zH7xBEHEuA8Mdm7ybtYPuZeNg5LE+YmqdpXOFzuUIBrBngZ8PsA92x4eU2RJRiGne8Z9c31MeCKgNzX1SdYB1wH7C6BjG1sxx4tCz8qwqL+A9wHvMsSRhI4/0XALWqOmQc+NU7ebp2GQpiHvrGgaHJF+YdFY/HIamzGLwTe7Mi7OzUBaEXgnK1Yh4CbgZcECkJfv7rAKxQp7aUuZTV/XFxiAYb531dtxEbAZJcC14p76dSEnNaB+3eABxRzfJXKrO1V4urKeJcBb3LxzbxoiWhFpm4wGmT82G2SgZS5HD3BYSnm9s8Ae+mlMLSl7bQsoswaDCNfJAmAK1XVGdG5ReipedE7ukz4C1bK6KP1lwAP1aztvWjGtByJxXJPgM0IYTXwmAq8JhYZ5b21TKipynl/rR6yTzQYj8qzodzNl2vsE/gIzm7GVIkj2iJGJS76WINZ9yryLS/2c++RwF2KlqYWYniWwtG7MV+7nAvJ9+CElPB21tMuSS3HrPFUCVNDmzDajdys4JSGh+XPl5T3emCbo6dc2pBxFQuFBYQq4joCun3Es1BxFSyaDgC/FWvcLYXVYek523M5XlK8pdKAOU/GWRby2g6Ai/W89oo1/KKk8ZJ2Ke4SAjZ8JapiTDwsZp6VF7cJh6s7wG+AjwEvtbCkqnS6MO7rwBMV4eamaof6AGyuXkbPIF2EUTsDfL1dazwh5rreEdxTz6aM3YxxLXpEXMN3S5SgDO+6qg68vy7mn6SCTihw97iU5yf0sE9QBPCtJ2+su4Kvj8VeW2fnq2qHaRj4uSfz9eSPiJs50WJ6T/qpjkRBW9kGgSZ83ZK23s2DEoIxvbdXAO7uAdZU7BN06/umgc0ZG26+QsWIlsd6MvItMSMlCU1PyEz8LpU2+nSIrgxkfKIYnQbOz/cebRGnyJp8ADajVBtnYgUzDSLzSrTOpKF7gDdIOpmqaz49graVai6TVHOZWvS4wBz/JN+d13ZYTdGe/7bixX7gNeT7WrepPkBakKJ2BFjsuwUYwV0nk5jogoHfp8y04anxWhAvBj4oTaLHStzdmKC0O8Tazu4CkZS5pVcyde9TUTxbXYTt9DoDSqRTdcSBfZjJ3eEJ3NnXV0h2tNsD0ey2Mawp6fHrmTzSlHgw6zgFsD3pWN+EqpAHlgmZRWxyFDgd4ItKUKlHYDU++Hrys1521uHTI8hUc8aOSw+JG/S1BiOEtar7pce95BvKUgZ42FE38a8GPgd83NHg8NH6zdS3u7ob9n8/+REpH8zfzG8B8Fbg8+S7+V7tub6+CqHITZUtbkRlHlVR09DdzePAOz3nWWa9s4JCsQ9z/VwmT9H0ivHdKvEbPSF21/rm6rcM/F+j1jF5kqZZQZObTG/WZ4RvFt4h/n5OMzXEUhLy1ud+wnaaNQMF5CMMk81sG1Q202+JGxzdFDpNuu9q0xu/DO0jP7RxkHyLyZAEyZXkm8kWW0XWUMnzjSBWikUGYfZzjQwzvkH59hftq/eQ7zVdy9SvKLDpRCmgviqB1mcbobm2aZA5fb8FcFuJWzHMHyXfJDC/AOvRw7bmVeSN9TKU0wjgomNBAAaKeFsBhKGt4hbyY68hcHXC9K2GG5nch9TEvRNiYKjmIGJOCjxDwQwtR7G0tSJcbWdbRuDLmWwatR3v23IsaL+dhp7C1H33HamENztg4jqsbrFgUzoeHCLfRDAw5icDtASTabyQvEFzgPz04pN031lQVejmeWvId0uMAz+VOHNUZz5lNUE3fKjqM8pAv6rvO2oswGZAwvTvByoLtC0H7tT2tIbUCvyRKgJ/S5j6zVoJxwCcMGjmn0y+o2IXed9gFPgeU7H+KIQeMf8CJg+Lu8YdUrSlUQj1Mj8h/9ZE0yl7msnumGm6mKLuKwXuKtIM4YvtdN+DlKlrG46lwqofWdoi8i0nZQcxTFPnBqsImzNZxWwVwEpPrMZkQabnm0UB1EM+B741zZncfrYLwDB9n0AVlAjCXNsVA3H9QfizHkHYwM0viEG4XitNyc8h6BOI+sS8Pol4Y2R+71zlGia/scQ1bmLqVvVIPRDCAvIjQg+QfyHUXvLzXxdFFvU/aRhm+m7qSH2oDezDF75fOROpB8KIvj5SpEiRIkWKFClSpEiRIkWKFClSpEjl9D8ACArERQeDJAAAAABJRU5ErkJggg==)"></span>', kind: 'panel' },
   audio:     { name: 'Mute', icon: I('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/><path d="M3 3l18 18"/>'), kind: 'panel' },
   power:     { name: 'Shutdown', icon: I('<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2.5v9"/>'), kind: 'panel' },
   dates:     { name: 'Date converter', icon: '<span class="mi" style="--m:url(data:image/png;base64,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)"></span>', kind: 'panel' },
   settings:  { name: 'Settings', kind: 'panel', fixed: true },
 };
 const DEF_DOCK = ['emoji', 'clip', 'color', 'shot', 'note', 'more'];
-const DEF_MORE = ['clock', 'dates', 'folders', 'power'];
+const DEF_MORE = ['clock', 'dates', 'folders', 'vault', 'network', 'power'];
 
 // migrate older settings (single "order" list) and keep lists consistent with what exists
 function normalize() {
@@ -729,7 +801,10 @@ function setPanel(name, fromMore = false) {
   if (name === 'clock') renderZones();
   if (name === 'dates') { if (!$('#dtY').value) dtToday(); setTimeout(() => $('#dtY').focus(), 60); }
   if (name === 'power') renderShut();
+  if (name === 'network') netOpen();
   if (name === 'audio') audioOpen();
+  if (name !== 'vault') vLeave();
+  if (name === 'vault') { send('vaultList'); vView(false); }
   if (name === 'settings') renderWidgets();
 }
 const anchorOf = el => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
@@ -1306,6 +1381,88 @@ $('#dtCals').addEventListener('click', e => {
 $('#dtToday').addEventListener('click', dtToday);
 $('#dtOut').addEventListener('click', e => { const c = e.target.closest('[data-c]')?.dataset.c; if (c) copy(c, 'Copied ' + c); });
 
+/* ---- passwords (encrypted with Windows DPAPI by vault.rs) ---- */
+let vItems = [], vEdit = null, vShown = null, vSure = null, vHide;
+const vMsg = t => { $('#vMsg').textContent = t || ''; };
+function vView(form) {
+  $('#vListBox').style.display = form ? 'none' : 'flex';
+  $('#vForm').style.display = form ? 'flex' : 'none';
+  $('#vAdd').style.display = form ? 'none' : '';
+}
+function vLeave() {                    // leaving the panel: forget anything sensitive the page was holding
+  clearTimeout(vHide); vShown = null; vSure = null; vEdit = null;
+  $('#vPass').value = ''; $('#vPass').type = 'password'; $('#vEye').textContent = 'Show'; vMsg('');
+  if (vItems.length) renderVault();
+}
+const vLogoHTML = l => !l ? '🔑' : l.startsWith('data:') ? `<img src="${esc(l)}" alt="">` : esc(l);
+function renderVault() {
+  const q = $('#vSearch').value.trim().toLowerCase();
+  const list = vItems.filter(v => !q || `${v.title} ${v.site} ${v.user}`.toLowerCase().includes(q));
+  $('#vList').innerHTML = list.length ? list.map(v => {
+    const open = vShown?.id === v.id;
+    const user = (v.user || v.site) ? `<small dir="auto">${esc(v.user || v.site)}</small>` : '';
+    const pw = open ? `<small class="pwshow" dir="ltr">${esc(vShown.pw ?? '—')}</small>` : `<small class="pwmask" dir="ltr">********</small>`;
+    const eye = `<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>${open ? '<path d="M3 3l18 18"/>' : ''}</svg>`;
+    return `<button class="item vt spring" data-id="${esc(v.id)}"><span class="lg${v.logo && v.logo.startsWith('data:') ? ' img' : ''}">${vLogoHTML(v.logo)}</span><span class="tx"><b dir="auto">${esc(v.title || v.site || 'Login')}</b>${user}${pw}</span>`
+      + `<span class="acts"><span data-a="user" title="Copy username">@</span>`
+      + `<span data-a="copy" title="Copy password"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg></span>`
+      + `<span data-a="show" title="${open ? 'Hide' : 'Show'} password">${eye}</span>`
+      + `<span data-a="edit" title="Edit"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></span>`
+      + `<span data-a="del" title="${vSure === v.id ? 'Click again to delete' : 'Delete'}">${vSure === v.id ? '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>'}</span></span></button>`;
+  }).join('') : `<div class="empty">${vItems.length ? 'No match' : 'No saved logins yet. Press ＋ Add'}</div>`;
+}
+function vOpenForm(v) {
+  vEdit = v ? v.id : null; vMsg('');
+  $('#vTitle').value = v?.title || ''; $('#vSite').value = v?.site || ''; $('#vUser').value = v?.user || '';
+  $('#vPass').value = ''; $('#vPass').type = 'password'; $('#vEye').textContent = 'Show';
+  $('#vPass').placeholder = v ? 'New password' : 'Password';
+  vView(true); setTimeout(() => $('#vTitle').focus(), 60);
+}
+$('#vAdd').onclick = () => vOpenForm(null);
+$('#vCancel').onclick = () => { vLeave(); vView(false); };
+$('#vSearch').addEventListener('input', renderVault);
+$('#vEye').onclick = () => { const p = $('#vPass'), on = p.type === 'password'; p.type = on ? 'text' : 'password'; $('#vEye').textContent = on ? 'Hide' : 'Show'; };
+$('#vGen').onclick = () => {
+  const cs = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_', a = new Uint32Array(18);
+  crypto.getRandomValues(a);
+  $('#vPass').value = [...a].map(x => cs[x % cs.length]).join(''); $('#vPass').type = 'text'; $('#vEye').textContent = 'Hide';
+};
+$('#vSave').onclick = () => {
+  const title = $('#vTitle').value.trim(), site = $('#vSite').value.trim(), user = $('#vUser').value.trim(), pass = $('#vPass').value;
+  if (!title && !site) { vMsg('Give it a name or a website'); return; }
+  if (!vEdit && !pass) { vMsg('Enter a password'); return; }
+  const id = vEdit || 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  $('#vSave').disabled = true; vMsg('Saving…');
+  send('vaultSave', { entry: { id, title: title || site, site, user, logo: site ? 'site' : '🔑' }, pass });
+};
+$('#vList').onclick = e => {
+  const row = e.target.closest('.vt'); if (!row) return;
+  const id = row.dataset.id, v = vItems.find(x => x.id === id); if (!v) return;
+  const a = e.target.closest('[data-a]')?.dataset.a;
+  if (a === 'user') { if (v.user) copy(v.user, 'Username copied'); else toast('No username saved'); return; }
+  if (a === 'copy') { send('vaultCopy', { id }); toast('Password copied'); return; }
+  if (a === 'show') { if (vShown?.id === id) { vShown = null; renderVault(); } else send('vaultReveal', { id }); return; }
+  if (a === 'edit') { vOpenForm(v); return; }
+  if (a === 'del') {
+    if (vSure === id) { vSure = null; vShown = null; send('vaultDelete', { id }); }
+    else { vSure = id; renderVault(); setTimeout(() => { if (vSure === id) { vSure = null; renderVault(); } }, 2500); }
+    return;
+  }
+  // a click anywhere else on the row does nothing: only the icons act
+};
+// results coming back from Rust: app.vault(kind, data)
+app.vault = (k, d) => {
+  if (k === 'list') { vItems = d || []; renderVault(); }
+  else if (k === 'saved') {
+    $('#vSave').disabled = false;
+    if (d.ok) { vItems = d.list || []; vLeave(); vView(false); renderVault(); toast('Saved'); }
+    else vMsg(d.msg || 'Could not save');
+  } else if (k === 'reveal') {
+    vShown = { id: d.id, pw: d.pw }; renderVault();
+    clearTimeout(vHide); vHide = setTimeout(() => { vShown = null; renderVault(); }, 15000);   // hides itself again after 15 s
+  }
+};
+
 /* ---- general settings ---- */
 const tog = (el, key, after) => { el.classList.toggle('on', !!S[key]); el.onclick = () => { S[key] = !S[key]; el.classList.toggle('on', S[key]); save(); after && after(); }; };
 tog($('#tStartup'), 'startup');
@@ -1373,6 +1530,115 @@ $('#monSel').onchange = applyPlacement;
 })();
 app.placed = ({ edge }) => { DIR = edge === 'left' ? -1 : 1; document.body.classList.toggle('left', DIR < 0); mx = -1; wake(); toast(`Panel moved to the ${edge}`); };
 if (S.edge === 'left') { DIR = -1; document.body.classList.add('left'); }
+
+/* ---- network ---- */
+const NET_DNS = [['Google', '8.8.8.8', '8.8.4.4'], ['Cloudflare', '1.1.1.1', '1.0.0.1']];
+const NET_HOSTS = ['8.8.8.8', '1.1.1.1', 'google.com'];
+const eyeSvg = I('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>');
+const cpSvg = I('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>');
+S.dnsCustom = Array.isArray(S.dnsCustom) ? S.dnsCustom : [];
+const okIp = v => (/^(\d{1,3}\.){3}\d{1,3}$/.test(v) && v.split('.').every(n => +n < 256)) || (v.includes(':') && /^[0-9a-f:]+$/i.test(v));
+let netLoaded = false, netWifiLoaded = false, netWifi = [], netShown = new Set(), netPinging = false;
+
+function netOpen() { if (!netLoaded) netRefresh(); renderDnsChips(); renderHosts(); }
+function netRefresh() {
+  netLoaded = true;
+  ['netLocalV', 'netPublicV', 'netDnsV'].forEach(id => $('#' + id).textContent = '…');
+  send('netInfo');
+  if (netWifiLoaded) netLoadWifi(false);
+}
+$('#netRefresh').onclick = netRefresh;
+$('#netTabs').addEventListener('click', e => {
+  const n = e.target.dataset.n; if (!n) return;
+  $$('#netTabs button').forEach(b => b.classList.toggle('on', b.dataset.n === n));
+  $$('.npage').forEach(x => x.classList.toggle('on', x.dataset.n === n));
+  if (n === 'wifi' && !netWifiLoaded) netLoadWifi(false);
+  if (n === 'ping') setTimeout(() => $('#netHost').focus(), 60);
+});
+document.querySelector('[data-name=network] .npage[data-n=info]').addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const v = $('#' + b.dataset.copy).textContent; if (v && !/^[…—]|Offline/.test(v)) copy(v);
+});
+
+/* DNS */
+const netMsg = t => { $('#netDnsMsg').textContent = t; };
+const netDnsBusy = on => $$('#netApply, #netReset, #netFlush').forEach(b => b.disabled = on);
+function renderDnsChips() {
+  const p = $('#netDns1').value.trim(), q = $('#netDns2').value.trim();
+  $('#netChips').innerHTML = [...NET_DNS.map(([n, a, b]) => ({ n, a, b })), ...S.dnsCustom.map((c, i) => ({ n: c.name || c.a, a: c.a, b: c.b, x: i + 1 }))]
+    .map(c => `<button class="chip spring ${c.a === p && (c.b || '') === q ? 'on' : ''}" data-a="${esc(c.a)}" data-b="${esc(c.b || '')}" ${c.x ? `data-x="${c.x - 1}"` : ''} title="${esc(c.a + (c.b ? ', ' + c.b : ''))}">${esc(c.n)}${c.x ? '<span data-del>×</span>' : ''}</button>`).join('');
+}
+$('#netChips').onclick = e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  if (e.target.closest('[data-del]')) { S.dnsCustom.splice(+c.dataset.x, 1); save(); renderDnsChips(); return; }
+  $('#netDns1').value = c.dataset.a; $('#netDns2').value = c.dataset.b; renderDnsChips();
+};
+['#netDns1', '#netDns2'].forEach(id => $(id).addEventListener('input', renderDnsChips));
+const dnsFields = () => [$('#netDns1').value.trim(), $('#netDns2').value.trim()].filter(Boolean);
+$('#netApply').onclick = () => {
+  const list = dnsFields();
+  if (!list.length || !list.every(okIp)) { netMsg('Enter a valid DNS address'); return; }
+  netDnsBusy(true); netMsg('Waiting for administrator permission…'); send('netDns', { servers: list });
+};
+$('#netReset').onclick = () => { netDnsBusy(true); netMsg('Waiting for administrator permission…'); send('netDns', { servers: [] }); };
+$('#netFlush').onclick = () => { netDnsBusy(true); netMsg('Flushing…'); send('netFlush'); };
+$('#netSave').onclick = () => {
+  const [a, b = ''] = dnsFields();
+  if (!a || !okIp(a) || (b && !okIp(b))) { netMsg('Enter a valid DNS address'); return; }
+  if (NET_DNS.some(d => d[1] === a && d[2] === b) || S.dnsCustom.some(d => d.a === a && d.b === b)) { netMsg('Already in the list'); return; }
+  const name = $('#netDnsName').value.trim();
+  S.dnsCustom.push(name ? { name, a, b } : { a, b }); save();
+  $('#netDnsName').value = ''; renderDnsChips(); netMsg('Saved'); toast('Saved');
+};
+
+/* ping */
+function renderHosts() { $('#netHosts').innerHTML = NET_HOSTS.map(h => `<button class="chip spring" data-h="${h}">${h}</button>`).join(''); if (!$('#netHost').value) $('#netHost').value = S.pingHost || ''; }
+$('#netHosts').onclick = e => { const h = e.target.dataset.h; if (h) { $('#netHost').value = h; netPing(); } };
+function netPing() {
+  if (netPinging) return;
+  const host = $('#netHost').value.trim(); if (!host) return;
+  S.pingHost = host; save();
+  netPinging = true; $('#netPingBtn').disabled = true; $('#netPingOut').textContent = `Pinging ${host}…\n`;
+  send('netPing', { host });
+}
+$('#netPingBtn').onclick = netPing;
+$('#netHost').addEventListener('keydown', e => { if (e.key === 'Enter') netPing(); });
+
+/* Wi-Fi */
+function netLoadWifi(admin) {
+  netWifiLoaded = true; netShown.clear();
+  $('#netWifiList').innerHTML = '<div class="empty">Reading saved networks…</div>';
+  send('netWifi', { admin });
+}
+function renderWifi() {
+  $('#netWifiList').innerHTML = netWifi.length ? netWifi.map((w, i) =>
+    `<button class="item spring" data-i="${i}">${esc(w.name)}<small>${esc(w.auth || 'Wi‑Fi')} · ${w.pass ? (netShown.has(i) ? esc(w.pass) : '••••••••') : 'no password'}</small>${w.pass
+      ? `<span class="acts"><span data-show title="Show / hide">${eyeSvg}</span><span data-cp title="Copy">${cpSvg}</span></span>` : ''}</button>`).join('')
+    : '<div class="empty">No saved Wi‑Fi networks</div>';
+}
+$('#netWifiList').onclick = e => {
+  const b = e.target.closest('.item'); if (!b) return; const i = +b.dataset.i, w = netWifi[i]; if (!w?.pass) return;
+  if (e.target.closest('[data-show]')) { netShown.has(i) ? netShown.delete(i) : netShown.add(i); renderWifi(); }
+  else copy(w.pass, 'Password copied');
+};
+$('#netWifiAdmin').onclick = () => netLoadWifi(true);
+
+/* results coming back from Rust */
+app.net = (k, d) => {
+  if (k === 'local') $('#netLocalV').textContent = d || 'Not connected';
+  else if (k === 'public') $('#netPublicV').textContent = d || 'Offline';
+  else if (k === 'dns') $('#netDnsV').textContent = d && d.length ? d.join(', ') : '—';
+  else if (k === 'ping') {
+    const out = $('#netPingOut'); out.textContent += d.line + '\n'; out.scrollTop = out.scrollHeight;
+    if (d.done) { netPinging = false; $('#netPingBtn').disabled = false; }
+  } else if (k === 'dnsDone') {
+    netDnsBusy(false); netMsg(d.msg); toast(d.msg);
+    send('netInfo', { only: 'dns' });
+  } else if (k === 'wifi') {
+    netWifi = d.items || []; renderWifi(); $('#netWifiAdmin').style.display = d.needAdmin ? '' : 'none';
+    if (d.cancelled) toast('Cancelled, or administrator rights were not granted');
+  }
+};
 
 /* ---- mute: microphone & sound (toggle only) ---- */
 S.audio = Object.assign({ enabled: false, mic: { mods: 3, vk: 0x4D }, spk: { mods: 3, vk: 0x53 } }, S.audio || {});   // Ctrl+Alt+M / Ctrl+Alt+S

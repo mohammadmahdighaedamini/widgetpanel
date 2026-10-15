@@ -143,17 +143,6 @@ pub fn clip_seq() -> u64 {
     unsafe { GetClipboardSequenceNumber() as u64 }
 }
 
-/* ---------------- Windows folder helpers ---------------- */
-/// The Windows folder (never taken from the current directory or PATH).
-pub fn windows_dir() -> std::path::PathBuf {
-    std::env::var_os("SystemRoot").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"))
-}
-
-/// Full path of a tool that ships with Windows, so a look-alike .exe on PATH can never be started instead.
-pub fn system_exe(name: &str) -> std::path::PathBuf {
-    windows_dir().join("System32").join(format!("{}.exe", name.trim_end_matches(".exe")))
-}
-
 /* ---------------- keyboard ---------------- */
 fn key(vk: u16, up: bool) -> INPUT {
     INPUT {
@@ -193,7 +182,7 @@ pub fn restore_foreground() {
 pub fn shutdown(secs: u32) {
     use std::{os::windows::process::CommandExt, process::Command};
     thread::spawn(move || {
-        let run = |args: &[&str]| Command::new(system_exe("shutdown")).args(args).creation_flags(0x0800_0000).status();
+        let run = |args: &[&str]| Command::new(crate::net::system_exe("shutdown")).args(args).creation_flags(0x0800_0000).status();
         let _ = run(&["/a"]);
         let _ = run(&["/s", "/t", &secs.to_string()]);
     });
@@ -203,7 +192,7 @@ pub fn shutdown(secs: u32) {
 pub fn cancel_shutdown() {
     use std::{os::windows::process::CommandExt, process::Command};
     thread::spawn(|| {
-        let _ = Command::new(system_exe("shutdown")).arg("/a").creation_flags(0x0800_0000).status();
+        let _ = Command::new(crate::net::system_exe("shutdown")).arg("/a").creation_flags(0x0800_0000).status();
     });
 }
 
@@ -218,7 +207,7 @@ pub fn screen_off() {
 pub fn screenshot() {
     thread::spawn(|| {
         thread::sleep(Duration::from_millis(350));
-        let _ = std::process::Command::new(windows_dir().join("explorer.exe")).arg("ms-screenclip:").spawn();
+        let _ = std::process::Command::new(crate::net::windows_dir().join("explorer.exe")).arg("ms-screenclip:").spawn();
     });
 }
 
@@ -517,6 +506,41 @@ unsafe fn run_measure() -> Option<(i32, i32)> {
             DeleteObject(card_bmp as _);
         }
         result
+    }
+}
+
+/* ---------------- DPAPI: saved logins ---------------- */
+pub fn protect(data: &[u8]) -> Option<Vec<u8>> {
+    use windows_sys::Win32::{
+        Foundation::LocalFree,
+        Security::Cryptography::{CryptProtectData, CRYPT_INTEGER_BLOB},
+    };
+    unsafe {
+        let input = CRYPT_INTEGER_BLOB { cbData: data.len() as u32, pbData: data.as_ptr() as *mut u8 };
+        let mut out = CRYPT_INTEGER_BLOB { cbData: 0, pbData: std::ptr::null_mut() };
+        if CryptProtectData(&input, std::ptr::null(), std::ptr::null(), std::ptr::null(), std::ptr::null(), 1, &mut out) == 0 || out.pbData.is_null() {
+            return None;
+        }
+        let v = std::slice::from_raw_parts(out.pbData, out.cbData as usize).to_vec();
+        LocalFree(out.pbData as _);
+        Some(v)
+    }
+}
+
+pub fn unprotect(data: &[u8]) -> Option<Vec<u8>> {
+    use windows_sys::Win32::{
+        Foundation::LocalFree,
+        Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB},
+    };
+    unsafe {
+        let input = CRYPT_INTEGER_BLOB { cbData: data.len() as u32, pbData: data.as_ptr() as *mut u8 };
+        let mut out = CRYPT_INTEGER_BLOB { cbData: 0, pbData: std::ptr::null_mut() };
+        if CryptUnprotectData(&input, std::ptr::null_mut(), std::ptr::null(), std::ptr::null(), std::ptr::null(), 1, &mut out) == 0 || out.pbData.is_null() {
+            return None;
+        }
+        let v = std::slice::from_raw_parts(out.pbData, out.cbData as usize).to_vec();
+        LocalFree(out.pbData as _);
+        Some(v)
     }
 }
 

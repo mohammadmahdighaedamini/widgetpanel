@@ -13,8 +13,10 @@ use std::{
 };
 
 mod audio;
+mod net;
 mod sys;
 mod util;
+mod vault;
 
 use serde_json::{json, Value};
 use tao::{
@@ -121,6 +123,23 @@ fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
+/* ---------------- network panel ---------------- */
+/// Sends a result to the Network panel: app.net(kind, data)
+fn net_emit(proxy: &EventLoopProxy<Ev>, kind: &str, data: Value) {
+    let _ = proxy.send_event(Ev::Script(format!("app.net({},{})", json!(kind), data)));
+}
+
+/* ---------------- passwords ---------------- */
+/// Sends a result to the Passwords panel: app.vault(kind, data)
+fn vault_emit(proxy: &EventLoopProxy<Ev>, kind: &str, data: Value) {
+    let _ = proxy.send_event(Ev::Script(format!("app.vault({},{})", json!(kind), data)));
+}
+
+/// True when the clipboard holds a password we copied ourselves (it must not enter the history).
+fn is_secret(text: &str) -> bool {
+    vault::is_secret(text)
+}
+
 /* ---------------- clipboard ---------------- */
 pub fn set_clip(text: &str) {
     if let Ok(mut c) = arboard::Clipboard::new() {
@@ -142,7 +161,9 @@ fn spawn_clip_watch(proxy: EventLoopProxy<Ev>) {
                 seq = s;
                 match get_clip() {
                     Some(t) if !t.trim().is_empty() => {
-                        if t.len() < 100_000 && proxy.send_event(Ev::Script(format!("app.clip({})", json!(t)))).is_err() {
+                        if is_secret(&t) {
+                            // a password we copied: keep it out of the history
+                        } else if t.len() < 100_000 && proxy.send_event(Ev::Script(format!("app.clip({})", json!(t)))).is_err() {
                             return;
                         }
                     }
@@ -609,6 +630,7 @@ fn main() {
 
     let dir = sys::data_dir();
     let settings_path = dir.join("settings.json");
+    thread::spawn(net::cleanup_stale_wifi); // password exports left in %TEMP% by an interrupted Wi-Fi read
     #[cfg(not(debug_assertions))]
     sys::refresh_registered_paths(); // the exe may have been moved since "start with Windows" / the right-click menu were set up
 
@@ -861,6 +883,47 @@ fn main() {
                             });
                         }
                     }
+                    "vaultList" => {
+                        vault_emit(&proxy, "list", vault::public());
+                        let p = proxy.clone();
+                        thread::spawn(move || {
+                            if vault::fetch_missing_logos() {
+                                vault_emit(&p, "list", vault::public());
+                            }
+                        });
+                    }
+                    "vaultSave" => {
+                        let entry = m["entry"].clone();
+                        let pass = m["pass"].as_str().filter(|p| !p.is_empty()).map(String::from);
+                        let p = proxy.clone();
+                        thread::spawn(move || {
+                            match vault::save(&entry, pass.as_deref()) {
+                                Ok(logo_job) => {
+                                    vault_emit(&p, "saved", json!({ "ok": true, "list": vault::public() }));
+                                    if let Some((id, site)) = logo_job {
+                                        if let Some(logo) = vault::favicon(&site) {
+                                            vault::set_logo(&id, logo);
+                                            vault_emit(&p, "list", vault::public());
+                                        }
+                                    }
+                                }
+                                Err(e) => vault_emit(&p, "saved", json!({ "ok": false, "msg": e })),
+                            }
+                        });
+                    }
+                    "vaultDelete" => {
+                        vault::delete(&s("id"));
+                        vault_emit(&proxy, "list", vault::public());
+                    }
+                    "vaultReveal" => {
+                        let id = s("id");
+                        let pw = vault::reveal(&id);
+                        vault_emit(&proxy, "reveal", json!({ "id": id, "pw": pw }));
+                    }
+                    "vaultCopy" => {
+                        let ok = vault::copy_password(&s("id"));
+                        let _ = webview.evaluate_script(if ok { "app.toast('Password copied')" } else { "app.toast('Could not read that password')" });
+                    }
                     "log" => log(&s("text")),
                     "addApp" => add_app(proxy.clone(), m["folder"].as_bool().unwrap_or(false)),
                     "launch" | "open" => sys::launch(&s(if m["t"] == "open" { "target" } else { "path" })),
@@ -911,10 +974,49 @@ fn main() {
                         LAST_IMAGE.store(id, Ordering::Relaxed);
                         let _ = webview.evaluate_script(if ok { "app.toast('Image copied')" } else { "app.toast('Could not copy that image')" });
                     }
+                    "netInfo" => {
+                        if s("only").is_empty() {
+                            let p = proxy.clone();
+                            thread::spawn(move || net_emit(&p, "local", json!(net::local_ip())));
+                            let p = proxy.clone();
+                            thread::spawn(move || net_emit(&p, "public", json!(net::public_ip())));
+                        }
+                        let p = proxy.clone();
+                        thread::spawn(move || net_emit(&p, "dns", json!(net::current_dns())));
+                    }
+                    "netPing" => {
+                        let (host, p) = (s("host"), proxy.clone());
+                        thread::spawn(move || net::ping(host.trim(), |v| net_emit(&p, "ping", v)));
+                    }
+                    "netFlush" => {
+                        let p = proxy.clone();
+                        thread::spawn(move || {
+                            let ok = net::flush_dns();
+                            let msg = if ok { "DNS cache flushed" } else { "Could not flush the DNS cache" };
+                            net_emit(&p, "dnsDone", json!({ "ok": ok, "msg": msg }));
+                        });
+                    }
+                    "netDns" => {
+                        let servers: Vec<String> =
+                            m["servers"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
+                        let p = proxy.clone();
+                        thread::spawn(move || {
+                            let (ok, msg) = match net::set_dns(&servers) {
+                                Ok(()) if servers.is_empty() => (true, "DNS reset to automatic".to_string()),
+                                Ok(()) => (true, format!("DNS set to {}", servers.join(", "))),
+                                Err(e) => (false, e),
+                            };
+                            net_emit(&p, "dnsDone", json!({ "ok": ok, "msg": msg }));
+                        });
+                    }
                     "audioState" => audio::state(),
                     "audioToggle" => audio::toggle(&s("which")),
                     "audioCfg" => audio::configure(&m["cfg"]),
                     "audioCapture" => audio::capture(m["on"].as_bool().unwrap_or(false)),
+                    "netWifi" => {
+                        let (admin, p) = (m["admin"].as_bool().unwrap_or(false), proxy.clone());
+                        thread::spawn(move || net_emit(&p, "wifi", net::wifi(admin)));
+                    }
                     "quit" => {
                         *flow = ControlFlow::Exit;
                     }
